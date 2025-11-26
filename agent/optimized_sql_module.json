@@ -1,0 +1,63 @@
+{
+  "predict": {
+    "traces": [],
+    "train": [],
+    "demos": [
+      {
+        "augmented": true,
+        "db_schema": "Table Products: ProductID (INTEGER), ProductName (TEXT), UnitPrice (FLOAT)...",
+        "constraints": "CostOfGoods ≈ 0.7 * UnitPrice",
+        "question": "What is the price of Chai?",
+        "previous_error": "",
+        "reasoning": "To find the price of a specific product named Chai from the Products table, we need to join it with the Orders or \"Order Details\" tables if there is related order information. However, since no orders data are provided in constraints and assuming that each product has its own unit cost based on CostOfGoods ≈ 0.7 * UnitPrice, we will query directly from Products table using a WHERE clause to filter the price for Chai.",
+        "sql_query": "SELECT UnitPrice FROM Products WHERE ProductName = 'Chai';"
+      },
+      {
+        "augmented": true,
+        "db_schema": "Table Orders: OrderID (INTEGER), OrderDate (TEXT)...",
+        "constraints": "Summer 1997 starts 1997-06-01",
+        "question": "How many orders in Summer 1997?",
+        "previous_error": "",
+        "reasoning": "To find out how many orders were placed in Summer 1997, we need to count the number of OrderID entries from the Orders table where the OrderDate falls within June and August of 1997. The query will filter dates using a BETWEEN operator with 'YYYY-MM-DD' format for both start and end dates specified in the constraints (June 1st to August 31st, inclusive).",
+        "sql_query": "SELECT COUNT(*) FROM Orders WHERE OrderDate BETWEEN '1997-06-01' AND '1997-08-31';"
+      }
+    ],
+    "signature": {
+      "instructions": "You are a SQLite expert. Generate executable SQL queries.\n\nCRITICAL RULES:\n1. Table names: Orders, \"Order Details\" (MUST USE QUOTES), Products, Customers, Categories.\n2. JOIN PATH for Product Sales: Categories -> Products -> \"Order Details\" -> Orders.\n3. Dates: Use string format 'YYYY-MM-DD'.\n4. Output ONLY the SQL string. No markdown, no comments.\n\nreturn a valid full complete SQLite query, do not add any extra text.",
+      "fields": [
+        {
+          "prefix": "Db Schema:",
+          "description": "Schema with columns"
+        },
+        {
+          "prefix": "Constraints:",
+          "description": "Context & required date filters"
+        },
+        {
+          "prefix": "Question:",
+          "description": "${question}"
+        },
+        {
+          "prefix": "Previous Error:",
+          "description": "Correction needed"
+        },
+        {
+          "prefix": "Reasoning: Let's think step by step in order to",
+          "description": "${reasoning}"
+        },
+        {
+          "prefix": "Sql Query:",
+          "description": "The SQL query starting with SELECT"
+        }
+      ]
+    },
+    "lm": null
+  },
+  "metadata": {
+    "dependency_versions": {
+      "python": "3.11",
+      "dspy": "3.0.4",
+      "cloudpickle": "3.1"
+    }
+  }
+}
