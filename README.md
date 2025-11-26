@@ -1,7 +1,3 @@
-Here is the concise **README.md** meeting all the assignment requirements.
-
-***
-
 # Retail Analytics Copilot (DSPy + LangGraph)
 
 A local, private AI agent that answers retail analytics questions by orchestrating RAG over local documents and SQL generation against a SQLite database.
