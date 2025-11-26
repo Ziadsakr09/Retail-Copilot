@@ -12,8 +12,7 @@ from agent.tools.sqlite_tool import SQLiteTool
 
 # --- CONFIG ---
 MODEL_NAME = "ollama/phi3.5:3.8b-mini-instruct-q4_K_M"
-
-# FIX 1: Increase max tokens (num_predict) to prevent cutoff
+# Increased token limit
 lm = dspy.LM(model=MODEL_NAME, api_base="http://localhost:11434", num_predict=1000)
 dspy.configure(lm=lm)
 
@@ -95,8 +94,10 @@ def sql_gen_node(state: AgentState):
     db = SQLiteTool()
     schema_str = db.get_schema()
     
+    # Use Predict (No ChainOfThought)
     predictor = dspy.Predict(GenerateSQL)
     
+    # Try loading optimized module if available
     try:
         predictor.load("agent/optimized_sql_module.json")
     except:
@@ -110,11 +111,10 @@ def sql_gen_node(state: AgentState):
     )
     
     raw_text = response.sql_query
-    print(f"         > Raw SQL: {raw_text}")
     clean_sql = extract_sql_from_text(raw_text)
     clean_sql = clean_sql.replace("OrderDetails", '"Order Details"')
     
-    print(f"         > Clean SQL: {clean_sql}...")
+    print(f"         > Clean SQL: {clean_sql[:50]}...")
     
     return {"sql_query": clean_sql, "error": None}
 
@@ -135,7 +135,7 @@ def executor_node(state: AgentState):
     if err:
         print(f"         > SQL Error: {err}")
         return {
-            "error": err, 
+            "error": state["sql_query"] + "  SQL Error:  " + err, 
             "repair_attempts": state.get("repair_attempts", 0) + 1
         }
     
@@ -149,32 +149,59 @@ def synthesizer_node(state: AgentState):
     rows = state.get("sql_rows", [])
     sql_res_str = str(rows)[:2000] 
     
+    # NEW: Use simplified signature
     predictor = dspy.Predict(SynthesizeAnswer)
-    response = predictor(
-        question=state["question"],
-        format_hint=state["format_hint"],
-        sql_query=state.get("sql_query", "N/A"),
-        sql_result=sql_res_str,
-        doc_context=doc_context
-    )
     
-    raw_ans = response.final_answer
-    parsed_ans = raw_ans
-    
+    raw_text = ""
     try:
-        val_str = str(raw_ans).strip()
-        if "{" in val_str or "[" in val_str:
-            val_str = val_str.replace("```json", "").replace("```", "").strip()
+        response = predictor(
+            question=state["question"],
+            format_hint=state["format_hint"],
+            sql_query=state.get("sql_query", "N/A"),
+            sql_result=sql_res_str,
+            doc_context=doc_context
+        )
+        raw_text = response.response_text
+    except Exception as e:
+        print(f"         > Synthesis Gen Error: {e}")
+        raw_text = "Answer: N/A"
+
+    # Robust Parsing using Regex (No JSON parsing of full structure)
+    explanation = "See final answer."
+    
+    # Extract Explanation if present
+    expl_match = re.search(r"Explanation:\s*(.*)", raw_text, re.DOTALL | re.IGNORECASE)
+    if expl_match:
+        explanation = expl_match.group(1).strip()
+    
+    # Extract Answer portion
+    ans_match = re.search(r"Answer:\s*(.*?)(?:\nExplanation|$)", raw_text, re.DOTALL | re.IGNORECASE)
+    val_str = ans_match.group(1).strip() if ans_match else raw_text
+    
+    # Type Conversion
+    parsed_ans = val_str # Default fallback
+    try:
+        clean_val = val_str.strip()
+        
+        # 1. JSON/Dict
+        if "{" in clean_val or "[" in clean_val:
+            clean_val = clean_val.replace("```json", "").replace("```", "").strip()
+            # Try parsing
             try:
-                parsed_ans = json.loads(val_str.replace("'", '"'))
+                parsed_ans = json.loads(clean_val.replace("'", '"'))
             except:
-                parsed_ans = ast.literal_eval(val_str)
+                parsed_ans = ast.literal_eval(clean_val)
+                
+        # 2. Int
         elif state["format_hint"] == "int":
-            nums = re.findall(r"-?\d+", val_str.replace(",", ""))
+            nums = re.findall(r"-?\d+", clean_val.replace(",", ""))
             if nums: parsed_ans = int(nums[0])
+            
+        # 3. Float
         elif state["format_hint"] == "float":
-            nums = re.findall(r"-?\d+\.?\d*", val_str.replace(",", ""))
+            nums = re.findall(r"-?\d+\.?\d*", clean_val.replace(",", ""))
             if nums: parsed_ans = float(nums[0])
+            
     except Exception as e:
         print(f"         > Parsing Error: {e}")
         pass 
@@ -190,7 +217,7 @@ def synthesizer_node(state: AgentState):
 
     return {
         "final_answer": parsed_ans,
-        "explanation": response.explanation,
+        "explanation": explanation,
         "citations": citations
     }
 
