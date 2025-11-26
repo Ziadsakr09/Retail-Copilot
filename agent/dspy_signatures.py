@@ -15,8 +15,6 @@ class GenerateSQL(dspy.Signature):
     2. JOIN PATH for Product Sales: Categories -> Products -> "Order Details" -> Orders.
     3. Dates: Use string format 'YYYY-MM-DD'.
     4. Output ONLY the SQL string. No markdown, no comments.
-
-    return a valid full complete SQLite query, do not add any extra text.
     """
     db_schema = dspy.InputField(desc="Schema with columns") 
     constraints = dspy.InputField(desc="Context & required date filters")
@@ -24,14 +22,19 @@ class GenerateSQL(dspy.Signature):
     previous_error = dspy.InputField(desc="Correction needed")
     sql_query = dspy.OutputField(desc="The SQL query starting with SELECT")
 
-# 3. Synthesizer
+# 3. Synthesizer (UPDATED)
 class SynthesizeAnswer(dspy.Signature):
-    """Answer the question based on SQL results and retrieved context."""
+    """Answer the question based on SQL results and retrieved context.
+    
+    Output Format:
+    Answer: <The exact answer matching the format hint>
+    Explanation: <A brief explanation>
+    """
     question = dspy.InputField()
     format_hint = dspy.InputField()
     sql_query = dspy.InputField()
     sql_result = dspy.InputField(desc="Rows returned from database")
     doc_context = dspy.InputField(desc="Relevant text from documents")
     
-    final_answer = dspy.OutputField(desc="The answer matching format_hint exactly")
-    explanation = dspy.OutputField(desc="Brief explanation")
+    # Changed to single text field to prevent JSON parsing errors
+    response_text = dspy.OutputField(desc="The answer and explanation text")
